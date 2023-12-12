@@ -1,0 +1,177 @@
+<html>
+
+ <!-- Adventure Travel Website for testing.
+      This avoids ajax and jquery to make it easier to use (no dependencies). --> 
+
+ <meta charset="UTF-8">
+
+ <head>
+
+  <title id="pageTitle"></title>
+
+  <script type='text/javascript'>
+
+   //
+   // User interface support
+   //
+
+   var currentFrame=0;
+   var frames=new Array;
+   var frameNames=new Array;
+
+   frames.push( // 0:main screen: "Adventure"
+      "<p id='intro'>Use this form to calculate your discount for booking Adventure Trips.</p>\
+       <fieldset style='display:inline-block; width:90%; border-radius:8px;'>\
+          <legend id='heading'>\
+          <b>1. Applicant details</b></legend>\
+          <p>Click on the button below to enter your details.</p>\
+          <button id='details' onclick='setFrame(1)'>Enter Details</button>\
+      </fieldset>");
+   frameNames.push("Adventure");
+
+   frames.push( // 1:data entry screen: "Adventure - Details"
+      "<form id='appForm' action='javascript:getDiscount()'>\
+       <p id='info'>Enter your details below, and click Submit.</p>\
+       <fieldset style='display:inline-block; width:90%; border-radius:8px;'>\
+        <legend><b>2. Applicant Details</b></legend>\
+        <br>Age: <input type='text' id='age' value=''><br><br>\
+        Check here if you are an Adventure Trip club member: <input type='checkbox' id='member' name='member'><br><br>\
+        Select years of membership: <select id='years' name='years'>\
+         <option value='NOT' selected>Not a member</option>\
+         <option value='LT1'>Less than 1 year</option>\
+         <option value='LT5'>Less than 5 years</option>\
+         <option value='GT5'>More than 5 years</option>\
+        </select><br><br>\
+        <button>Submit</button>\
+       </fieldset><br>\
+      </form>\
+      <p>Click <a id='return' href='#0' onclick='setFrame(0)'>here</a> to return to the main page.</p>");
+   frameNames.push("Enter Details");
+
+   frames.push( // 2:result screen: "Discount"
+      "<p id='result'>Your discount is calculated below.</p>\
+       <fieldset style='display:inline-block; width:90%; border-radius:8px;'>\
+       <legend><b>Application Discount</b></legend>\
+       Discount: <div id='discount' style='display: inline-block;'></div>\
+       </fieldset>\
+       <p>Click <a href='#0' id='continue' onclick='javascript:setFrame(0)'>here</a> to continue.</p>");
+   frameNames.push("Discount");
+
+   frames.push( // 3:result screen: "Error"
+      "<p id='result'>There is an error in the details you have provided: invalid age.</p>\
+       <p>Click <a href='#0' id='retry' onclick='javascript:setFrame(1)'>here</a> to try again.</p>");
+   frameNames.push("Error");
+
+   function setFrame(n) {
+      console.log('setFrame('+n+')');
+      currentFrame=n;
+      document.getElementById('main').innerHTML = frames[n];
+      document.getElementById('pageTitle').innerHTML = frameNames[n];
+      document.title = frameNames[n];
+      return false; // prevent blank href's being followed
+   }
+
+   document.addEventListener("DOMContentLoaded", function(){
+      setFrame(0,"Adventure Travel");
+   });
+
+   //
+   // Here is the javascript that generates a request from the form, sends it, and processes the reply
+   //
+
+   function getDiscount() {
+      var age=document.getElementById('age').value;
+      if ( isNaN(age) || (age<0) || age.includes('.') ) {
+         // Not an number: error
+         setFrame( 3, 'Error' );
+      } else {
+         // Number: make a server request
+         var data = {
+            age: document.getElementById('age').value,
+            member: document.getElementById('member').checked,
+            years: document.getElementById('years').value
+         };
+         // Post server request & handle response
+         $mock.post('discount.script', data,
+            function(reply, status){
+               console.log("callback(): status="+status+", returned data="+reply);
+               setFrame(2);
+               document.getElementById('discount').innerHTML = reply;
+            }
+         );
+      }
+   }
+
+   //
+   // Mock server support - note this version only supports one, fixed server script
+   //
+
+   let _Mock = class {
+      latency=20; // Simulated round trip latency in ms
+      constructor(url) {
+         this.url = url;
+      }
+      // This is the mock server script to process a request
+      script(p) {
+         console.log('server request: age='+p.age+", member="+p.member+", years="+p.years);
+         var result = this.process(p.age, p.member, p.years);
+         return result;
+      }
+      // Call the mock server script and schedule callback for asynch execution
+      post(url, data, cb) {
+         this.failed = false;
+         if (url==this.url) {
+            var response = this.script(data);
+            setTimeout( cb, this.latency, response, "success" ); // note: use window.setTimeout in html
+         } else {
+            this.failed = true;
+         }
+         return this;
+      }
+      // Here is the utility function that generates the result
+      // return error message if age outside limits (18..60)
+      // otherwise discount as follows:
+      // 1. 0% if not a member
+      // 2. members between the ages of 18-60 get discounts as follows:
+      //    a) 20% if a member for > 5 years
+      //    b) 10% otherwise
+      process(p_age,p_member,p_years) {
+         console.log("process("+p_age+","+p_member+","+p_years+")");
+         var disc='0%';
+         if ( (p_age >= 18) && (p_age <= 60) ) {
+            if (p_member)
+               if (p_years=="GT5")
+                  disc = '20%';
+               else
+                  disc = '10%';
+         } else {
+            disc = "I'm sorry, but applicants must be between the ages of 18 and 60.";
+         }
+         return disc;
+      }
+   };
+
+   var $mock = new _Mock('discount.script');
+
+   //
+   // End of mock server code
+   //
+
+ </script>
+
+ </head>
+
+  <body>
+
+   <img id='logo' src='AT.png' style='margin: 0px auto; display:block'>
+    <hr>
+
+    <div id='main'>  
+    </div>
+
+    <hr>
+    <p>&copy; 2021 Adventure Trips International, Ltd.</p>
+
+  </body>
+
+</html>
